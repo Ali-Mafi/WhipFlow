@@ -24,7 +24,7 @@ Persistent
 ; Defaults
 ; ------------------------------------------------------------
 
-global DEFAULT_PROMPT := "FAST MODE: Continue exactly from the last state. Do not repeat completed work, do not add explanations, do not do unnecessary searches, and do not re-review finished sections. Only do: git status → latest commit → remaining tests → fix real errors → commit → push. If tests already pass, commit and push immediately. Final output only: commit SHA and changed-file summary."
+global DEFAULT_PROMPT := "FAST MODE: Continue from the current state. Do not repeat completed work, do not add explanations, and do not do unnecessary searches or re-reviews. Focus only on the remaining work and finish it as quickly as possible."
 
 global DEFAULT_RIGHT_DISTANCE := 50
 global DEFAULT_RIGHT_SPEED := 10
@@ -48,7 +48,7 @@ global SNAP_TIMEOUT := DEFAULT_SNAP_TIMEOUT
 global cooldownMs := DEFAULT_COOLDOWN
 global soundEnabled := true
 global SOUND_EFFECT := 1
-global SOUND_VOLUME := 80
+global SOUND_VOLUME := 50
 global audioPlayer := 0
 
 ; ------------------------------------------------------------
