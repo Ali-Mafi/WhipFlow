@@ -1135,7 +1135,7 @@ LoadSettings()
 
     soundEnabled := (IniRead(settingsFile, "Sound", "Enabled", "1") = "1")
     SOUND_EFFECT := Integer(IniRead(settingsFile, "Sound", "Effect", "1"))
-    SOUND_VOLUME := Integer(IniRead(settingsFile, "Sound", "Volume", "80"))
+    SOUND_VOLUME := Integer(IniRead(settingsFile, "Sound", "Volume", "50"))
 
     SOUND_EFFECT := Max(1, Min(3, SOUND_EFFECT))
     SOUND_VOLUME := Max(0, Min(100, SOUND_VOLUME))
