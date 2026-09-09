@@ -1,0 +1,6 @@
+whip_settings.ini
+*.exe
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
