@@ -24,7 +24,21 @@ Persistent
 ; Defaults
 ; ------------------------------------------------------------
 
-global DEFAULT_PROMPT := "FAST MODE: Continue from the current state. Do not repeat completed work, do not add explanations, and do not do unnecessary searches or re-reviews. Focus only on the remaining work and finish it as quickly as possible."
+global PROMPT_PRESETS := [
+    {
+        name: "Continue",
+        text: "FAST MODE: Continue from the current state. Do not repeat completed work, do not add explanations, and do not do unnecessary searches or re-reviews. Focus only on the remaining work and finish it as quickly as possible."
+    },
+    {
+        name: "Fix & Continue",
+        text: "Inspect the current state, identify the issue blocking progress, fix it, and continue the task. Do not redo work that is already complete."
+    },
+    {
+        name: "Finish & Verify",
+        text: "Complete all remaining work, verify the result thoroughly, fix any issues you find, and finish the task without unnecessary interruptions."
+    }
+]
+global DEFAULT_PROMPT := PROMPT_PRESETS[1].text
 
 global DEFAULT_RIGHT_DISTANCE := 50
 global DEFAULT_RIGHT_SPEED := 10
@@ -40,6 +54,7 @@ global settingsFile := A_ScriptDir "\whip_settings.ini"
 ; ------------------------------------------------------------
 
 global FAST_PROMPT := DEFAULT_PROMPT
+global PROMPT_PRESET := 1
 global RIGHT_DISTANCE := DEFAULT_RIGHT_DISTANCE
 global RIGHT_SPEED := DEFAULT_RIGHT_SPEED
 global LEFT_DISTANCE := DEFAULT_LEFT_DISTANCE
@@ -778,6 +793,8 @@ OpenSettings()
     global SNAP_TIMEOUT
     global cooldownMs
     global FAST_PROMPT
+    global PROMPT_PRESET
+    global PROMPT_PRESETS
     global soundEnabled
     global SOUND_EFFECT
     global SOUND_VOLUME
@@ -834,10 +851,27 @@ OpenSettings()
     g.AddText("x36 y58 w480 h28", "Whip Prompt")
 
     g.SetFont("s9", "Segoe UI")
-    g.AddText("x36 y90 w480 h34 c666666", "This exact text is pasted and submitted whenever WhipFlow triggers.")
+    g.AddText("x36 y90 w480 h34 c666666", "Choose a suggested prompt, then edit it freely before saving.")
 
-    promptEdit := g.AddEdit("x36 y132 w490 h210 Multi WantTab VScroll", FAST_PROMPT)
-    resetPromptBtn := g.AddButton("x36 y354 w130 h30", "Reset prompt")
+    promptPresetState := {selectedPreset: PROMPT_PRESET}
+    promptIsModified := Trim(FAST_PROMPT) != Trim(GetPromptPresetText(PROMPT_PRESET))
+    promptChoiceIndex := promptIsModified ? 4 : PROMPT_PRESET
+
+    g.AddText("x36 y130 w150 h22", "Suggested prompt")
+    promptChoice := g.AddDropDownList("x180 y126 w220 Choose" promptChoiceIndex, [
+        PROMPT_PRESETS[1].name,
+        PROMPT_PRESETS[2].name,
+        PROMPT_PRESETS[3].name,
+        "Custom (modified)"
+    ])
+
+    promptStatus := g.AddText(
+        "x410 y130 w116 h22 Right c777777",
+        promptIsModified ? "Modified" : "Preset"
+    )
+
+    promptEdit := g.AddEdit("x36 y162 w490 h180 Multi WantTab VScroll", FAST_PROMPT)
+    resetPromptBtn := g.AddButton("x36 y354 w160 h30", "Reset to preset")
 
     ; ---------------- Sound ----------------
     tabs.UseTab(3)
@@ -874,7 +908,26 @@ OpenSettings()
     cancelBtn := g.AddButton("x447 y420 w105 h34", "Cancel")
     resetAllBtn := g.AddButton("x16 y420 w125 h34", "Reset defaults")
 
-    resetPromptBtn.OnEvent("Click", (*) => promptEdit.Value := DEFAULT_PROMPT)
+    promptChoice.OnEvent("Change", (*) => ApplyPromptPreset(
+        promptChoice,
+        promptEdit,
+        promptStatus,
+        promptPresetState
+    ))
+
+    promptEdit.OnEvent("Change", (*) => SyncPromptPresetState(
+        promptChoice,
+        promptEdit,
+        promptStatus,
+        promptPresetState
+    ))
+
+    resetPromptBtn.OnEvent("Click", (*) => ResetPromptToSelectedPreset(
+        promptChoice,
+        promptEdit,
+        promptStatus,
+        promptPresetState
+    ))
 
     testSoundBtn.OnEvent("Click", (*) => TestSelectedSound(
         soundChoice.Value,
@@ -890,6 +943,9 @@ OpenSettings()
         timeoutEdit,
         cooldownEdit,
         promptEdit,
+        promptChoice,
+        promptStatus,
+        promptPresetState,
         soundCheckbox,
         soundChoice,
         volumeSlider,
@@ -905,6 +961,7 @@ OpenSettings()
         timeoutEdit,
         cooldownEdit,
         promptEdit,
+        promptPresetState,
         soundCheckbox,
         soundChoice,
         volumeSlider
@@ -925,6 +982,9 @@ ResetSettingsControls(
     timeoutEdit,
     cooldownEdit,
     promptEdit,
+    promptChoice,
+    promptStatus,
+    promptPresetState,
     soundCheckbox,
     soundChoice,
     volumeSlider,
@@ -945,7 +1005,10 @@ ResetSettingsControls(
     leftSpeedEdit.Value := DEFAULT_LEFT_SPEED
     timeoutEdit.Value := DEFAULT_SNAP_TIMEOUT
     cooldownEdit.Value := DEFAULT_COOLDOWN
+    promptPresetState.selectedPreset := 1
+    promptChoice.Choose(1)
     promptEdit.Value := DEFAULT_PROMPT
+    promptStatus.Text := "Preset"
 
     soundCheckbox.Value := 1
     soundChoice.Choose(1)
@@ -962,6 +1025,7 @@ SaveSettingsFromGui(
     timeoutEdit,
     cooldownEdit,
     promptEdit,
+    promptPresetState,
     soundCheckbox,
     soundChoice,
     volumeSlider
@@ -974,6 +1038,7 @@ SaveSettingsFromGui(
     global SNAP_TIMEOUT
     global cooldownMs
     global FAST_PROMPT
+    global PROMPT_PRESET
     global soundEnabled
     global SOUND_EFFECT
     global SOUND_VOLUME
@@ -987,7 +1052,9 @@ SaveSettingsFromGui(
 
     FAST_PROMPT := Trim(promptEdit.Value)
     if (FAST_PROMPT = "")
-        FAST_PROMPT := DEFAULT_PROMPT
+        FAST_PROMPT := GetPromptPresetText(promptPresetState.selectedPreset)
+
+    PROMPT_PRESET := Max(1, Min(3, promptPresetState.selectedPreset))
 
     soundEnabled := soundCheckbox.Value ? true : false
     SOUND_EFFECT := Max(1, Min(3, soundChoice.Value))
@@ -996,6 +1063,55 @@ SaveSettingsFromGui(
     SaveSettings()
     ShowMiniToast("Settings saved")
     CloseSettings(g)
+}
+
+GetPromptPresetText(index)
+{
+    global PROMPT_PRESETS
+
+    index := Max(1, Min(PROMPT_PRESETS.Length, index))
+    return PROMPT_PRESETS[index].text
+}
+
+ApplyPromptPreset(promptChoice, promptEdit, promptStatus, promptPresetState)
+{
+    global PROMPT_PRESETS
+
+    idx := promptChoice.Value
+
+    ; "Custom (modified)" is a display state, not a selectable preset.
+    if (idx < 1 || idx > PROMPT_PRESETS.Length)
+    {
+        promptChoice.Choose(4)
+        return
+    }
+
+    promptPresetState.selectedPreset := idx
+    promptEdit.Value := PROMPT_PRESETS[idx].text
+    promptStatus.Text := "Preset"
+}
+
+SyncPromptPresetState(promptChoice, promptEdit, promptStatus, promptPresetState)
+{
+    selectedText := GetPromptPresetText(promptPresetState.selectedPreset)
+
+    if (Trim(promptEdit.Value) = Trim(selectedText))
+    {
+        promptChoice.Choose(promptPresetState.selectedPreset)
+        promptStatus.Text := "Preset"
+    }
+    else
+    {
+        promptChoice.Choose(4)
+        promptStatus.Text := "Modified"
+    }
+}
+
+ResetPromptToSelectedPreset(promptChoice, promptEdit, promptStatus, promptPresetState)
+{
+    promptEdit.Value := GetPromptPresetText(promptPresetState.selectedPreset)
+    promptChoice.Choose(promptPresetState.selectedPreset)
+    promptStatus.Text := "Preset"
 }
 
 ClampInt(value, minVal, maxVal, fallback)
@@ -1108,6 +1224,7 @@ LoadSettings()
     global settingsFile
 
     global FAST_PROMPT
+    global PROMPT_PRESET
     global RIGHT_DISTANCE
     global RIGHT_SPEED
     global LEFT_DISTANCE
@@ -1140,8 +1257,15 @@ LoadSettings()
     SOUND_EFFECT := Max(1, Min(3, SOUND_EFFECT))
     SOUND_VOLUME := Max(0, Min(100, SOUND_VOLUME))
 
+    PROMPT_PRESET := ClampInt(
+        IniRead(settingsFile, "Prompt", "Preset", "1"),
+        1,
+        3,
+        1
+    )
+
     promptValue := IniRead(settingsFile, "Prompt", "Text", DEFAULT_PROMPT)
-    FAST_PROMPT := promptValue = "" ? DEFAULT_PROMPT : promptValue
+    FAST_PROMPT := promptValue = "" ? GetPromptPresetText(PROMPT_PRESET) : promptValue
 }
 
 SaveSettings()
@@ -1149,6 +1273,7 @@ SaveSettings()
     global settingsFile
 
     global FAST_PROMPT
+    global PROMPT_PRESET
     global RIGHT_DISTANCE
     global RIGHT_SPEED
     global LEFT_DISTANCE
@@ -1170,6 +1295,7 @@ SaveSettings()
     IniWrite(SOUND_EFFECT, settingsFile, "Sound", "Effect")
     IniWrite(SOUND_VOLUME, settingsFile, "Sound", "Volume")
 
+    IniWrite(PROMPT_PRESET, settingsFile, "Prompt", "Preset")
     IniWrite(FAST_PROMPT, settingsFile, "Prompt", "Text")
 }
 
