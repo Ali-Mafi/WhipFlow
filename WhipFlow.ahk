@@ -1020,8 +1020,8 @@ ResetSettingsControls(
 
     soundCheckbox.Value := 1
     soundChoice.Choose(1)
-    volumeSlider.Value := 80
-    volumeText.Text := "80%"
+    volumeSlider.Value := 50
+    volumeText.Text := "50%"
 }
 
 SaveSettingsFromGui(
