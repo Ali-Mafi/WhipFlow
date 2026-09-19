@@ -36,9 +36,14 @@ global PROMPT_PRESETS := [
     {
         name: "Finish & Verify",
         text: "Complete all remaining work, verify the result thoroughly, fix any issues you find, and finish the task without unnecessary interruptions."
+    },
+    {
+        name: "Default",
+        text: "FAST MODE: Continue faster."
     }
 ]
-global DEFAULT_PROMPT := PROMPT_PRESETS[1].text
+global DEFAULT_PROMPT_PRESET := 4
+global DEFAULT_PROMPT := PROMPT_PRESETS[DEFAULT_PROMPT_PRESET].text
 
 global DEFAULT_RIGHT_DISTANCE := 50
 global DEFAULT_RIGHT_SPEED := 10
@@ -54,7 +59,7 @@ global settingsFile := A_ScriptDir "\whip_settings.ini"
 ; ------------------------------------------------------------
 
 global FAST_PROMPT := DEFAULT_PROMPT
-global PROMPT_PRESET := 1
+global PROMPT_PRESET := DEFAULT_PROMPT_PRESET
 global RIGHT_DISTANCE := DEFAULT_RIGHT_DISTANCE
 global RIGHT_SPEED := DEFAULT_RIGHT_SPEED
 global LEFT_DISTANCE := DEFAULT_LEFT_DISTANCE
@@ -499,7 +504,7 @@ AnimateWhip()
 }
 
 ; ============================================================
-; Gesture detection — right pull, then sharp left snap
+; Gesture detection — left pull, then sharp right snap
 ; ============================================================
 
 TrackGesture()
@@ -533,33 +538,36 @@ TrackGesture()
 
     now := A_TickCount
 
-    ; Phase 0: extend to the RIGHT
+    ; Phase 0: pull to the LEFT.
+    ; Legacy RIGHT_* values remain the pull thresholds so existing
+    ; user tuning keeps the same feel after reversing the gesture.
     if (whipPhase = 0)
     {
-        if (dx > 0)
+        if (dx < 0)
         {
-            rightTravel += dx
+            leftTravel += -dx
 
-            if (dx > rightPeakSpeed)
-                rightPeakSpeed := dx
+            if (-dx > leftPeakSpeed)
+                leftPeakSpeed := -dx
         }
-        else if (dx < -5)
+        else if (dx > 5)
         {
-            rightTravel := Max(0.0, rightTravel + dx * 0.35)
+            leftTravel := Max(0.0, leftTravel - dx * 0.35)
         }
 
-        if (rightTravel >= RIGHT_DISTANCE && rightPeakSpeed >= RIGHT_SPEED)
+        if (leftTravel >= RIGHT_DISTANCE && leftPeakSpeed >= RIGHT_SPEED)
         {
             whipPhase := 1
-            leftTravel := 0.0
-            leftPeakSpeed := 0.0
+            rightTravel := 0.0
+            rightPeakSpeed := 0.0
             phaseStartedAt := now
         }
 
         return
     }
 
-    ; Phase 1: snap LEFT
+    ; Phase 1: snap RIGHT.
+    ; Legacy LEFT_* values remain the snap thresholds.
     if (whipPhase = 1)
     {
         if (now - phaseStartedAt > SNAP_TIMEOUT)
@@ -568,25 +576,25 @@ TrackGesture()
             return
         }
 
-        if (dx < 0)
+        if (dx > 0)
         {
-            leftTravel += -dx
+            rightTravel += dx
 
-            if (-dx > leftPeakSpeed)
-                leftPeakSpeed := -dx
+            if (dx > rightPeakSpeed)
+                rightPeakSpeed := dx
         }
-        else if (dx > 8)
+        else if (dx < -8)
         {
-            rightTravel := dx
-            rightPeakSpeed := dx
-            leftTravel := 0.0
-            leftPeakSpeed := 0.0
+            leftTravel := -dx
+            leftPeakSpeed := -dx
+            rightTravel := 0.0
+            rightPeakSpeed := 0.0
             whipPhase := 0
             phaseStartedAt := now
             return
         }
 
-        if (leftTravel >= LEFT_DISTANCE && leftPeakSpeed >= LEFT_SPEED)
+        if (rightTravel >= LEFT_DISTANCE && rightPeakSpeed >= LEFT_SPEED)
         {
             FirePrompt()
 
@@ -824,18 +832,18 @@ OpenSettings()
     g.AddText("x36 y58 w480 h28", "Whip Movement")
 
     g.SetFont("s9", "Segoe UI")
-    g.AddText("x36 y90 w485 h34 c666666", "Tune the right pull and left snap until the gesture feels natural.")
+    g.AddText("x36 y90 w485 h34 c666666", "Tune the left pull and right snap until the gesture feels natural.")
 
-    g.AddText("x36 y138 w190 h22", "Right pull distance (px)")
+    g.AddText("x36 y138 w190 h22", "Left pull distance (px)")
     rightDistanceEdit := g.AddEdit("x270 y134 w110 h26 Number", RIGHT_DISTANCE)
 
-    g.AddText("x36 y178 w190 h22", "Right minimum speed")
+    g.AddText("x36 y178 w190 h22", "Left pull minimum speed")
     rightSpeedEdit := g.AddEdit("x270 y174 w110 h26 Number", RIGHT_SPEED)
 
-    g.AddText("x36 y218 w190 h22", "Left snap distance (px)")
+    g.AddText("x36 y218 w190 h22", "Right snap distance (px)")
     leftDistanceEdit := g.AddEdit("x270 y214 w110 h26 Number", LEFT_DISTANCE)
 
-    g.AddText("x36 y258 w190 h22", "Left minimum speed")
+    g.AddText("x36 y258 w190 h22", "Right snap minimum speed")
     leftSpeedEdit := g.AddEdit("x270 y254 w110 h26 Number", LEFT_SPEED)
 
     g.AddText("x36 y298 w190 h22", "Snap timeout (ms)")
@@ -860,7 +868,8 @@ OpenSettings()
     promptChoice := g.AddDropDownList("x180 y126 w220 Choose" PROMPT_PRESET, [
         PROMPT_PRESETS[1].name,
         PROMPT_PRESETS[2].name,
-        PROMPT_PRESETS[3].name
+        PROMPT_PRESETS[3].name,
+        PROMPT_PRESETS[4].name
     ])
 
     promptStatus := g.AddText(
@@ -996,6 +1005,7 @@ ResetSettingsControls(
     global DEFAULT_SNAP_TIMEOUT
     global DEFAULT_COOLDOWN
     global DEFAULT_PROMPT
+    global DEFAULT_PROMPT_PRESET
 
     rightDistanceEdit.Value := DEFAULT_RIGHT_DISTANCE
     rightSpeedEdit.Value := DEFAULT_RIGHT_SPEED
@@ -1003,8 +1013,8 @@ ResetSettingsControls(
     leftSpeedEdit.Value := DEFAULT_LEFT_SPEED
     timeoutEdit.Value := DEFAULT_SNAP_TIMEOUT
     cooldownEdit.Value := DEFAULT_COOLDOWN
-    promptPresetState.selectedPreset := 1
-    promptChoice.Choose(1)
+    promptPresetState.selectedPreset := DEFAULT_PROMPT_PRESET
+    promptChoice.Choose(DEFAULT_PROMPT_PRESET)
     promptEdit.Value := DEFAULT_PROMPT
     promptStatus.Text := "Preset"
 
@@ -1052,7 +1062,7 @@ SaveSettingsFromGui(
     if (FAST_PROMPT = "")
         FAST_PROMPT := GetPromptPresetText(promptPresetState.selectedPreset)
 
-    PROMPT_PRESET := Max(1, Min(3, promptPresetState.selectedPreset))
+    PROMPT_PRESET := Max(1, Min(4, promptPresetState.selectedPreset))
 
     soundEnabled := soundCheckbox.Value ? true : false
     SOUND_EFFECT := Max(1, Min(3, soundChoice.Value))
@@ -1226,6 +1236,7 @@ LoadSettings()
     global DEFAULT_LEFT_SPEED
     global DEFAULT_SNAP_TIMEOUT
     global DEFAULT_COOLDOWN
+    global DEFAULT_PROMPT_PRESET
 
     RIGHT_DISTANCE := Integer(IniRead(settingsFile, "Movement", "RightDistance", DEFAULT_RIGHT_DISTANCE))
     RIGHT_SPEED := Integer(IniRead(settingsFile, "Movement", "RightSpeed", DEFAULT_RIGHT_SPEED))
@@ -1242,10 +1253,10 @@ LoadSettings()
     SOUND_VOLUME := Max(0, Min(100, SOUND_VOLUME))
 
     PROMPT_PRESET := ClampInt(
-        IniRead(settingsFile, "Prompt", "Preset", "1"),
+        IniRead(settingsFile, "Prompt", "Preset", DEFAULT_PROMPT_PRESET),
         1,
-        3,
-        1
+        4,
+        DEFAULT_PROMPT_PRESET
     )
 
     promptValue := IniRead(settingsFile, "Prompt", "Text", DEFAULT_PROMPT)
