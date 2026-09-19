@@ -855,14 +855,12 @@ OpenSettings()
 
     promptPresetState := {selectedPreset: PROMPT_PRESET}
     promptIsModified := Trim(FAST_PROMPT) != Trim(GetPromptPresetText(PROMPT_PRESET))
-    promptChoiceIndex := promptIsModified ? 4 : PROMPT_PRESET
 
     g.AddText("x36 y130 w150 h22", "Suggested prompt")
-    promptChoice := g.AddDropDownList("x180 y126 w220 Choose" promptChoiceIndex, [
+    promptChoice := g.AddDropDownList("x180 y126 w220 Choose" PROMPT_PRESET, [
         PROMPT_PRESETS[1].name,
         PROMPT_PRESETS[2].name,
-        PROMPT_PRESETS[3].name,
-        "Custom (modified)"
+        PROMPT_PRESETS[3].name
     ])
 
     promptStatus := g.AddText(
@@ -1077,15 +1075,7 @@ ApplyPromptPreset(promptChoice, promptEdit, promptStatus, promptPresetState)
 {
     global PROMPT_PRESETS
 
-    idx := promptChoice.Value
-
-    ; "Custom (modified)" is a display state, not a selectable preset.
-    if (idx < 1 || idx > PROMPT_PRESETS.Length)
-    {
-        promptChoice.Choose(4)
-        return
-    }
-
+    idx := Max(1, Min(PROMPT_PRESETS.Length, promptChoice.Value))
     promptPresetState.selectedPreset := idx
     promptEdit.Value := PROMPT_PRESETS[idx].text
     promptStatus.Text := "Preset"
@@ -1096,15 +1086,9 @@ SyncPromptPresetState(promptChoice, promptEdit, promptStatus, promptPresetState)
     selectedText := GetPromptPresetText(promptPresetState.selectedPreset)
 
     if (Trim(promptEdit.Value) = Trim(selectedText))
-    {
-        promptChoice.Choose(promptPresetState.selectedPreset)
         promptStatus.Text := "Preset"
-    }
     else
-    {
-        promptChoice.Choose(4)
         promptStatus.Text := "Modified"
-    }
 }
 
 ResetPromptToSelectedPreset(promptChoice, promptEdit, promptStatus, promptPresetState)
